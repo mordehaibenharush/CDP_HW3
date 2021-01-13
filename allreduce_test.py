@@ -12,21 +12,28 @@ la_size = la_comm.Get_size()
 
 
 def _op(x, y):
-    # TODO: add your code
-    raise NotImplementedError()
+    return x + y
 
 
-for size in [2**12, 2**13, 2**14]:
+for size in [2**3, 2**4, 2**5]:#[2**12, 2**13, 2**14]:
     print("array size:", size)
     data = np.random.rand(size)
+    #data = np.random.randint(0, 100, size)
+    #data = np.full(size, ma_rank)
+    #data = np.arange(size)
     res1 = np.zeros_like(data)
     res2 = np.zeros_like(data)
     start1 = time()
     allreduce(data, res1, la_comm, _op)
     end1 = time()
+    print("naive impl output:")
+    print(res1)
     print("naive impl time:", end1-start1)
     start1 = time()
     ringallreduce(data, res2, la_comm, _op)
     end1 = time()
+    print("ring impl output:")
+    print(res2)
     print("ring impl time:", end1-start1)
-    assert np.allclose(res1, res2)
+    print(np.allclose(res1, res2))
+    #assert np.allclose(res1, res2)

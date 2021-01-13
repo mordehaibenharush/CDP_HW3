@@ -15,29 +15,47 @@ def ringallreduce(send, recv, comm, op):
     comm : MPI.Comm
     op : associative commutative binary operator
     """
+    #recv = recvv
     rank = comm.Get_rank()
+    #print("process num ", rank)
     size = comm.Get_size()
     block_size = int(len(send)/size)
     prv = (rank - 1)
     if rank == 0:
         prv = size-1
     nxt = (rank + 1) % size
-    recv = send
-    tmp = np.empty(block_size)
+    trecv = np.copy(send)
+    #tmp = np.zeros(block_size)
+    src = rank + 1
+    for i in range(size-1):
+        src = (src-1) if (src-1) >= 0 else (size-1)
+        s = trecv[src*block_size:(src+1)*block_size]
+        #print(rank, "Sending  from block: ", src, " to process ", nxt)
+        #print(rank, "Sending: ", s, " to process ", nxt)
+        comm.Isend(trecv[src*block_size:(src+1)*block_size], dest=nxt, tag=1)
+        #comm.Send(trecv[(src * block_size):((src + 1) * block_size)], dest=nxt, tag=1)
 
-    for i in range(size):
-        src = (rank-i) if (rank-i) >= 0 else (size-1)
-        comm.Isend([recv[src*block_size:(src+1)*block_size], block_size, MPI.INT], dest=nxt, tag=1)
         dst = (src-1) if (src-1) >= 0 else (size-1)
+        tmp = np.zeros(block_size, dtype=int)
+        #print(rank, "Receiving to block: ", dst, " from process ", prv)
         comm.Recv(tmp, source=prv, tag=1)
-        t = recv[dst*block_size:(dst+1)*block_size]
-        recv[dst*block_size:(dst+1)*block_size] = op(t, tmp)
+        #print(rank, "Receiving: ", tmp, " from process ", prv)
+        t = trecv[dst*block_size:(dst+1)*block_size]
+        trecv[dst*block_size:(dst+1)*block_size] = op(t, tmp)
 
-    for j in range(size):
-        src = ((rank+1)-j) if ((rank+1)-j) >= 0 else (size-1)
-        comm.Isend([recv[src * block_size:(src + 1) * block_size], block_size, MPI.INT], dest=nxt, tag=1)
+    src = (rank + 2) % size
+    for j in range(size-1):
+        src = (src-1) if (src-1) >= 0 else (size-1)
+        #print(rank, "Sending  from block: ", src, " to process ", nxt)
+        s = trecv[(src * block_size):((src + 1) * block_size)]
+        #print(rank, "Sending: ", s, " from block ", src, " to process ", nxt)
+        comm.Isend(trecv[(src * block_size):((src + 1) * block_size)], dest=nxt, tag=1)
         dst = (src-1) if (src-1) >= 0 else (size-1)
+        #print(rank, "Receiving to block: ", dst, " from process ", prv)
+        tmp = np.zeros(block_size, dtype=int)
         comm.Recv(tmp, source=prv, tag=1)
-        recv[dst * block_size:(dst + 1) * block_size] = tmp
+        #print(rank, "Receiving: ", tmp, " to block ", dst, " from process ", prv)
+        trecv[dst * block_size:(dst + 1) * block_size] = tmp
 
-    return recv
+    for i in range(len(send)):
+        recv[i] = trecv[i]
