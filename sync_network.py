@@ -14,7 +14,6 @@ class SynchronicNeuralNetwork(NeuralNetwork):
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
         size = comm.Get_size()
-        self.num_jobs = self.number_of_batches//size + 1
 
         for epoch in range(self.epochs):
 
@@ -24,15 +23,14 @@ class SynchronicNeuralNetwork(NeuralNetwork):
 
             for x, y in mini_batches:
                 # doing props
-                
                 self.forward_prop(x)
                 ma_nabla_b, ma_nabla_w = self.back_prop(y)
 
                 # summing all ma_nabla_b and ma_nabla_w to nabla_w and nabla_b
                 nabla_w = []
                 nabla_b = []
-
-
+                comm.Allreduce(nabla_w, ma_nabla_w, op=MPI.sum)
+                comm.Allreduce(nabla_b, ma_nabla_b, op=MPI.sum)
 
                 # calculate work
                 self.weights = [w - self.eta * dw for w, dw in zip(self.weights, nabla_w)]

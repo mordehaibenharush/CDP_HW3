@@ -36,7 +36,7 @@ def ringallreduce(send, recv, comm, op):
         #comm.Send(trecv[(src * block_size):((src + 1) * block_size)], dest=nxt, tag=1)
 
         dst = (src-1) if (src-1) >= 0 else (size-1)
-        tmp = np.zeros(block_size, dtype=int)
+        tmp = np.zeros(block_size, dtype=float)
         #print(rank, "Receiving to block: ", dst, " from process ", prv)
         comm.Recv(tmp, source=prv, tag=1)
         #print(rank, "Receiving: ", tmp, " from process ", prv)
@@ -52,7 +52,7 @@ def ringallreduce(send, recv, comm, op):
         comm.Isend(trecv[(src * block_size):((src + 1) * block_size)], dest=nxt, tag=1)
         dst = (src-1) if (src-1) >= 0 else (size-1)
         #print(rank, "Receiving to block: ", dst, " from process ", prv)
-        tmp = np.zeros(block_size, dtype=int)
+        tmp = np.zeros(block_size, dtype=float)
         comm.Recv(tmp, source=prv, tag=1)
         #print(rank, "Receiving: ", tmp, " to block ", dst, " from process ", prv)
         trecv[dst * block_size:(dst + 1) * block_size] = tmp
