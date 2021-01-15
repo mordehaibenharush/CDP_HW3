@@ -1,5 +1,5 @@
 from network import *
-from my_ring_allreduce import *
+#from my_ring_allreduce import *
 import mpi4py
 
 mpi4py.rc(initialize=False, finalize=False)
@@ -29,8 +29,15 @@ class SynchronicNeuralNetwork(NeuralNetwork):
                 # summing all ma_nabla_b and ma_nabla_w to nabla_w and nabla_b
                 nabla_w = []
                 nabla_b = []
-                comm.Allreduce(nabla_w, ma_nabla_w, op=MPI.sum)
-                comm.Allreduce(nabla_b, ma_nabla_b, op=MPI.sum)
+                #nabla_w = np.zeros_like(ma_nabla_w)
+                #nabla_b = np.zeros_like(ma_nabla_b)
+                for mw, mb in zip(ma_nabla_w, ma_nabla_b):
+                    w = np.zeros_like(mw)
+                    b = np.zeros_like(mb)
+                    comm.Allreduce(mw, w, op=MPI.SUM)
+                    comm.Allreduce(mb, b, op=MPI.SUM)
+                    nabla_w.append(w)
+                    nabla_b.append(b)
 
                 # calculate work
                 self.weights = [w - self.eta * dw for w, dw in zip(self.weights, nabla_w)]
