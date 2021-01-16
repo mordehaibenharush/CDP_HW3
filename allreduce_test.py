@@ -15,27 +15,33 @@ def _op(x, y):
     return x + y
 
 
-for size in [2**12, 2**13, 2**14]:#[2**3, 2**4, 2**5]:#[2**12, 2**13, 2**14]:
+for size in [2, 784, 128, 64, 10]:
     print("array size:", size)
     data = np.random.rand(size)
-    #data = np.random.randint(0, 100, size)
-    #data = np.full(size, ma_rank)
-    #data = np.arange(size)
+    data.resize((2, int(size//2)))
+    # data = np.random.randint(0, 100, size)
+    # data = np.full(size, ma_rank)
+    # data = np.arange(size)
     res1 = np.zeros_like(data)
     res2 = np.zeros_like(data)
+    res = np.zeros_like(data)
+    la_comm.Allreduce(data, res, op=MPI.SUM)
     start1 = time()
     allreduce(data, res1, la_comm, _op)
     end1 = time()
-    #print("naive impl output:")
-    #print(res1)
+    # print("naive impl output:")
+    # print(res1)
     print("naive impl time:", end1-start1)
     start1 = time()
     ringallreduce(data, res2, la_comm, _op)
     end1 = time()
-    #print("ring impl output:")
-    #print(res2)
+    # print("ring impl output:")
+    # print(res2)
     print("ring impl time:", end1-start1)
     print(np.allclose(res1, res2))
-    assert np.allclose(res1, res2)
-print("*****************************************")
+    print("******", np.allclose(res1, res), "******")
+    print("******", np.allclose(res2, res), "******")
+    # assert np.allclose(res1, res2)
+
+# print("*****************************************")
 
