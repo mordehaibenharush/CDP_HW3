@@ -15,7 +15,7 @@ def _op(x, y):
     return x + y
 
 
-for size in [2, 784, 128, 64, 10]:
+for size in [2**12, 2**13, 2**14]:
     print("array size:", size)
     data = np.random.rand(size)
     data.resize((2, int(size//2)))
@@ -38,10 +38,10 @@ for size in [2, 784, 128, 64, 10]:
     # print("ring impl output:")
     # print(res2)
     print("ring impl time:", end1-start1)
-    print(np.allclose(res1, res2))
-    print("******", np.allclose(res1, res), "******")
-    print("******", np.allclose(res2, res), "******")
-    # assert np.allclose(res1, res2)
+    # print(np.allclose(res1, res2))
+    # print("******", np.allclose(res1, res), "******")
+    # print("******", np.allclose(res2, res), "******")
+    assert np.allclose(res1, res2)
 
 # print("*****************************************")
 

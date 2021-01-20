@@ -23,11 +23,12 @@ def ringallreduce(send, recv, comm, op):
     nxt = (rank + 1) % size
 
     src = rank + 1
+
     for i in range(size-1):
         src = (src-1) if (src-1) >= 0 else (size-1)
         s = trecv[src*block_size:(src+1)*block_size]
         # print(rank, "Sending  from block: ", src, " to process ", nxt)
-        #print(rank, "Sending: ", s, " to process ", nxt)
+        # print(rank, "Sending: ", s, " to process ", nxt)
         comm.Isend(trecv[src*block_size:(src+1)*block_size], dest=nxt, tag=1)
         # comm.Send(trecv[(src * block_size):((src + 1) * block_size)], dest=nxt, tag=1)
 
@@ -46,15 +47,17 @@ def ringallreduce(send, recv, comm, op):
         src = (src-1) if (src-1) >= 0 else (size-1)
         # print(rank, "Sending  from block: ", src, " to process ", nxt)
         s = trecv[(src * block_size):((src + 1) * block_size)]
-        #print(rank, "Sending: ", s, " from block ", src, " to process ", nxt)
+        # print(rank, "Sending: ", s, " from block ", src, " to process ", nxt)
         comm.Isend(trecv[(src * block_size):((src + 1) * block_size)], dest=nxt, tag=1)
         dst = (src-1) if (src-1) >= 0 else (size-1)
         # print(rank, "Receiving to block: ", dst, " from process ", prv)
-        #tmp = np.zeros(block_size, dtype=float)
+        # tmp = np.zeros(block_size, dtype=float)
         tmp = np.zeros_like(tsend)
         comm.Recv(tmp, source=prv, tag=1)
-        #print(rank, "Receiving: ", tmp[:block_size], " to block ", dst, " from process ", prv)
+        # print(rank, "Receiving: ", tmp[:block_size], " to block ", dst, " from process ", prv)
         trecv[dst * block_size:(dst + 1) * block_size] = tmp[:block_size]
+
+    comm.barrier()
 
     for i in range(len_send):
         recv[i] = trecv[i]
