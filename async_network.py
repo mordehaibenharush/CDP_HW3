@@ -10,8 +10,6 @@ mpi4py.rc(initialize=False, finalize=False)
 from mpi4py import MPI
 
 
-from os import system
-
 class AsynchronicNeuralNetwork(NeuralNetwork):
 
     def __init__(self, sizes=list(), learning_rate=1.0, mini_batch_size=16, number_of_batches=16,
@@ -48,10 +46,12 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
         """
         # setting up the number of batches the worker should do every epoch
         # TODO: add your code
-        ##self.number_of_batches = sum([1 for ii in range(self.rank - self.num_masters, self.number_of_batches, self.num_workers)])    ##TODO: check this line
+        self.number_of_batches = sum([1 for ii in range(self.rank - self.num_masters, self.number_of_batches, self.num_workers)])    ##TODO: check this line
+        print("num batches for worker", self.rank, "is ", self.number_of_batches)
         for epoch in range(self.epochs):
             # creating batches for epoch
-            
+            #file = open('worker.txt', 'r')
+            #file.write('1')
             
             data = training_data[0]
             labels = training_data[1]
@@ -63,24 +63,34 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
 
             # send nabla_b, nabla_w to masters 
             # TODO: add your code
+            #file.write('2')
             
             for i in range(0, len(nabla_w)):  ##masters- 0 to num_masters - 1
                 dst = i % self.num_masters
                 ind = int(i / self.num_masters)
-                self.comm.Isend(nabla_w[i], dst)
-                self.comm.Isend(nabla_b[i], dst)
-           
+                self.comm.Isend(nabla_w[i], dst, ind)
+                self.comm.Isend(nabla_b[i], dst, ind)
+            #file.write('3')
+            
             # recieve new self.weight and self.biases values from masters
             # TODO: add your code
-            
+            wreqs = []
+            breqs = []
             for i in range(0, len(self.weights)):  ##masters- 0 to num_masters - 1 (including)
                 dst = i % self.num_masters
                 ind = int(i / self.num_masters)
-                s = MPI.Status()
-                req = self.comm.Irecv(self.weights[i], dst)
-                MPI.Request.Wait(req, s)
-                req = self.comm.Irecv(self.biases[i], dst)
-                MPI.Request.Wait(req)
+                # s = MPI.Status()
+                req = self.comm.Irecv(self.weights[i], dst, ind)
+                wreqs.append(req)
+                req = self.comm.Irecv(self.biases[i], dst, ind)
+                breqs.append(req)
+
+            for wr, br in zip(wreqs, breqs):
+                MPI.Request.Wait(wr)
+                MPI.Request.Wait(br)
+
+            #file.write('4')
+            #file.close()
 
     def do_master(self, validation_data):
         """
@@ -93,31 +103,36 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
         for i in range(self.rank, self.num_layers, self.num_masters):
             nabla_w.append(np.zeros_like(self.weights[i]))
             nabla_b.append(np.zeros_like(self.biases[i]))
-        
-        s = MPI.Status()
+        print("master number of batches ", self.number_of_batches)
         for epoch in range(self.epochs):
             for batch in range(self.number_of_batches):
-                print(self.number_of_batches)
+                print(batch)
                 # wait for any worker to finish batch and
                 # get the nabla_w, nabla_b for the master's layers
                 # TODO: add your code
+                s = MPI.Status()
+                self.comm.Probe(MPI.ANY_SOURCE, MPI.ANY_TAG, status=s)
+                # req = self.comm.Irecv(nabla_w[0], MPI.ANY_SOURCE, 0)
+                # MPI.Request.Wait(req, s)
                 
-                req = self.comm.Irecv(nabla_w[0], MPI.ANY_SOURCE, MPI.ANY_TAG)
-                MPI.Request.Wait(req, s)
-                
-                print(2)
+                # print(2)
                 
                 src = s.Get_source()       
-                req = self.comm.Irecv(nabla_b[0], src, MPI.ANY_TAG)
-                MPI.Request.Wait(req)
-                
-                
-                for i in range(1, len(nabla_w)):
-                    req = self.comm.Irecv(nabla_w[i], src)
-                    MPI.Request.Wait(req)
-                    req = self.comm.Irecv(nabla_b[i], src)
-                    MPI.Request.Wait(req)
-                print(3)
+                # req = self.comm.Irecv(nabla_b[0], src, 0)
+                # MPI.Request.Wait(req)
+                wreqs = []
+                breqs = []
+                for i in range(0, len(nabla_w)):
+                    # print(3)
+                    
+                    req = self.comm.Irecv(nabla_w[i], src, i)
+                    wreqs.append(req)
+                    req = self.comm.Irecv(nabla_b[i], src, i)
+                    breqs.append(req)
+
+                for wr, br in zip(wreqs, breqs):
+                    MPI.Request.Wait(wr)
+                    MPI.Request.Wait(br)
                 
                 # calculate new weights and biases (of layers in charge)
                 for i, dw, db in zip(range(self.rank, self.num_layers, self.num_masters), nabla_w, nabla_b):
@@ -126,14 +141,13 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
 
                 # send new values (of layers in charge)
                 # TODO: add your code
-                print(4)
-                for i in range(len(self.weights)):
-                    for k in range(self.num_masters, self.num_masters + self.num_workers):
-                        self.comm.Isend(self.weights[i], k)
-                        self.comm.Isend(self.biases[i], k)
-                print(5)
+                for i in range(self.rank, self.num_layers, self.num_masters):
+                    self.comm.Isend(self.weights[i], src, i)
+                    self.comm.Isend(self.biases[i], src, i)
                 
             self.print_progress(validation_data, epoch)
+
+        self.comm.barrier()
 
         # gather relevant weight and biases to process 0
         for i, dw, db in zip(range(self.rank, self.num_layers, self.num_masters), nabla_w, nabla_b):
