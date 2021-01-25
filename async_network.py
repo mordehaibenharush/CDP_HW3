@@ -10,6 +10,8 @@ mpi4py.rc(initialize=False, finalize=False)
 from mpi4py import MPI
 
 
+from os import system
+
 class AsynchronicNeuralNetwork(NeuralNetwork):
 
     def __init__(self, sizes=list(), learning_rate=1.0, mini_batch_size=16, number_of_batches=16,
@@ -47,11 +49,10 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
         # setting up the number of batches the worker should do every epoch
         # TODO: add your code
         ##self.number_of_batches = sum([1 for ii in range(self.rank - self.num_masters, self.number_of_batches, self.num_workers)])    ##TODO: check this line
-
+        system('echo 1 > worker1')
         for epoch in range(self.epochs):
             # creating batches for epoch
-            file = open('worker.txt', 'r')
-            file.write('1')
+            #system('echo 1 > worker1')
             
             data = training_data[0]
             labels = training_data[1]
@@ -63,27 +64,28 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
 
             # send nabla_b, nabla_w to masters 
             # TODO: add your code
-            file.write('2')
+            #system('echo 2 > worker2')
             
             for i in range(0, len(nabla_w)):  ##masters- 0 to num_masters - 1
                 dst = i % self.num_masters
                 ind = int(i / self.num_masters)
                 self.comm.Isend(nabla_w[i], dst, ind)
                 self.comm.Isend(nabla_b[i], dst, ind)
-            file.write('3')
-            
+           
             # recieve new self.weight and self.biases values from masters
             # TODO: add your code
+            #system('echo 3 > worker3')
+            
             for i in range(0, len(self.weights)):  ##masters- 0 to num_masters - 1 (including)
                 dst = i % self.num_masters
                 ind = int(i / self.num_masters)
                 s = MPI.Status()
                 req = self.comm.Irecv(self.weights[i], dst, ind)
                 MPI.Request.Wait(req, s)
-                req = elf.comm.Irecv(self.biases[i], dst, ind)
+                req = self.comm.Irecv(self.biases[i], dst, ind)
                 MPI.Request.Wait(req)
-            file.write('4')
-            file.close()
+            
+            system('echo 4 > worker4')
 
     def do_master(self, validation_data):
         """
@@ -119,7 +121,7 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                     
                     req = self.comm.Irecv(nabla_w[i], src, i)
                     MPI.Request.Wait(req)
-                    req = elf.comm.Irecv(nabla_b[i], src, i)
+                    req = self.comm.Irecv(nabla_b[i], src, i)
                     MPI.Request.Wait(req)
                     
                 
