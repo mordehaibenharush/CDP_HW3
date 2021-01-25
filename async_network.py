@@ -49,10 +49,9 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
         # setting up the number of batches the worker should do every epoch
         # TODO: add your code
         ##self.number_of_batches = sum([1 for ii in range(self.rank - self.num_masters, self.number_of_batches, self.num_workers)])    ##TODO: check this line
-        system('echo 1 > worker1')
         for epoch in range(self.epochs):
             # creating batches for epoch
-            #system('echo 1 > worker1')
+            
             
             data = training_data[0]
             labels = training_data[1]
@@ -64,28 +63,24 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
 
             # send nabla_b, nabla_w to masters 
             # TODO: add your code
-            #system('echo 2 > worker2')
             
             for i in range(0, len(nabla_w)):  ##masters- 0 to num_masters - 1
                 dst = i % self.num_masters
                 ind = int(i / self.num_masters)
-                self.comm.Isend(nabla_w[i], dst, ind)
-                self.comm.Isend(nabla_b[i], dst, ind)
+                self.comm.Isend(nabla_w[i], dst)
+                self.comm.Isend(nabla_b[i], dst)
            
             # recieve new self.weight and self.biases values from masters
             # TODO: add your code
-            #system('echo 3 > worker3')
             
             for i in range(0, len(self.weights)):  ##masters- 0 to num_masters - 1 (including)
                 dst = i % self.num_masters
                 ind = int(i / self.num_masters)
                 s = MPI.Status()
-                req = self.comm.Irecv(self.weights[i], dst, ind)
+                req = self.comm.Irecv(self.weights[i], dst)
                 MPI.Request.Wait(req, s)
-                req = self.comm.Irecv(self.biases[i], dst, ind)
+                req = self.comm.Irecv(self.biases[i], dst)
                 MPI.Request.Wait(req)
-            
-            system('echo 4 > worker4')
 
     def do_master(self, validation_data):
         """
@@ -99,31 +94,30 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
             nabla_w.append(np.zeros_like(self.weights[i]))
             nabla_b.append(np.zeros_like(self.biases[i]))
         
+        s = MPI.Status()
         for epoch in range(self.epochs):
             for batch in range(self.number_of_batches):
-                print(1)
+                print(self.number_of_batches)
                 # wait for any worker to finish batch and
                 # get the nabla_w, nabla_b for the master's layers
                 # TODO: add your code
-                s = MPI.Status()
-                req = self.comm.Irecv(nabla_w[0], MPI.ANY_SOURCE, 0)
+                
+                req = self.comm.Irecv(nabla_w[0], MPI.ANY_SOURCE, MPI.ANY_TAG)
                 MPI.Request.Wait(req, s)
                 
                 print(2)
                 
                 src = s.Get_source()       
-                req = self.comm.Irecv(nabla_b[0], src, 0)
+                req = self.comm.Irecv(nabla_b[0], src, MPI.ANY_TAG)
                 MPI.Request.Wait(req)
                 
                 
                 for i in range(1, len(nabla_w)):
-                    print(3)
-                    
-                    req = self.comm.Irecv(nabla_w[i], src, i)
+                    req = self.comm.Irecv(nabla_w[i], src)
                     MPI.Request.Wait(req)
-                    req = self.comm.Irecv(nabla_b[i], src, i)
+                    req = self.comm.Irecv(nabla_b[i], src)
                     MPI.Request.Wait(req)
-                    
+                print(3)
                 
                 # calculate new weights and biases (of layers in charge)
                 for i, dw, db in zip(range(self.rank, self.num_layers, self.num_masters), nabla_w, nabla_b):
@@ -132,10 +126,12 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
 
                 # send new values (of layers in charge)
                 # TODO: add your code
-                for i in range(self.weights):
-                    for k in range(self.num_masters + 1, self.num_masters + self.num_workers):
-                        self.comm.Isend(self.weights[i], k, i)
-                        self.comm.Isend(self.biases[i], k, i)
+                print(4)
+                for i in range(len(self.weights)):
+                    for k in range(self.num_masters, self.num_masters + self.num_workers):
+                        self.comm.Isend(self.weights[i], k)
+                        self.comm.Isend(self.biases[i], k)
+                print(5)
                 
             self.print_progress(validation_data, epoch)
 
