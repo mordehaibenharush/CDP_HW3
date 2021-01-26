@@ -125,10 +125,13 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
 
                 # send new values (of layers in charge)
                 # TODO: add your code
-                
+                tempw = []
+                tempb = []
                 for i in range(len(self.weights)):
-                    self.comm.Isend(self.weights[i], src)
-                    self.comm.Isend(self.biases[i], src)
+                    tempw.append(np.array(self.weights[i]))
+                    tempb.append(np.array(self.biases[i]))
+                    self.comm.Isend(tempw[i], src)
+                    self.comm.Isend(tempb[i], src)
                 
                 
             self.print_progress(validation_data, epoch)
