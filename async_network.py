@@ -48,16 +48,19 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
         """
         # setting up the number of batches the worker should do every epoch
         # TODO: add your code
-        self.number_of_batches = sum([1 for ii in range(self.rank - self.num_masters, self.number_of_batches, self.num_workers)])    ##TODO: check this line
+        self.number_of_batches = sum([1 for i in range(self.rank - self.num_masters, self.number_of_batches, self.num_workers)])    ##TODO: check this line
         for epoch in range(self.epochs):
             # creating batches for epoch
             data = training_data[0]
             labels = training_data[1]
             mini_batches = self.create_batches(data, labels, self.mini_batch_size)
             for x, y in mini_batches:
+                
                 # do work - don't change this
                 self.forward_prop(x)
                 nabla_b, nabla_w = self.back_prop(y)
+                
+                system(f'echo {len(nabla_w)} > worker')  ##DEBUG
 
                 # send nabla_b, nabla_w to masters 
                 # TODO: add your code
@@ -70,14 +73,15 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                 # recieve new self.weight and self.biases values from masters
                 # TODO: add your code
                 
-                for i in range(0, len(self.weights)):  ##masters- 0 to num_masters - 1 (including)
+                for i in range(0, len(self.weights) * self.num_masters):  ##masters- 0 to num_masters - 1 (including)
                     dst = i % self.num_masters
                     ind = int(i / self.num_masters)
                     s = MPI.Status()
-                    req = self.comm.Irecv(self.weights[i], dst)
+                    req = self.comm.Irecv(self.weights[ind], dst)
                     MPI.Request.Wait(req, s)
-                    req = self.comm.Irecv(self.biases[i], dst)
+                    req = self.comm.Irecv(self.biases[ind], dst)
                     MPI.Request.Wait(req)
+                
 
     def do_master(self, validation_data):
         """
@@ -91,13 +95,12 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
             nabla_w.append(np.zeros_like(self.weights[i]))
             nabla_b.append(np.zeros_like(self.biases[i]))
         
-        s = MPI.Status()
         for epoch in range(self.epochs):
             for batch in range(self.number_of_batches):
                 # wait for any worker to finish batch and
                 # get the nabla_w, nabla_b for the master's layers
                 # TODO: add your code
-                
+                s = MPI.Status()
                 req = self.comm.Irecv(nabla_w[0], MPI.ANY_SOURCE, MPI.ANY_TAG)
                 MPI.Request.Wait(req, s)
                 
@@ -131,6 +134,10 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
             self.print_progress(validation_data, epoch)
 
         # gather relevant weight and biases to process 0
+        #for i in range(len(self.weights)):
+        #    self.comm.Allgather(self.weights[i], self.weights[i])
+        #    self.comm.Allgather(self.biases[i], self.biases[i])
+        
         if self.rank != 0:
             for i in range(len(self.weights)):
                 self.comm.Isend(self.weights[i], 0)
@@ -138,12 +145,15 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
         else:
             for src in range(1, self.num_masters):
                 for i in range(len(self.weights), len(self.weights)*self.num_masters):
-                    w = np.zeros_like(self.weights[0])
-                    b = np.zeros_like(self.biases[0])
-                    self.comm.Irecv(w, src)
+                    ind = i % len(self.weights)
+                    #w = np.zeros_like(self.weights[0])
+                    #b = np.zeros_like(self.biases[0])
+                    self.comm.Irecv(self.weights[ind], src)
                     MPI.Request.Wait(req)
-                    self.comm.Irecv(b, src)
+                    self.comm.Irecv(self.biases[ind], src)
                     MPI.Request.Wait(req)
-                    self.weights.append(w)
-                    self.biases.append(b)
+                    #
+                    #self.biases.append(b)
+        
+        
         # TODO: add your code
