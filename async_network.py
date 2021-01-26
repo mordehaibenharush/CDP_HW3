@@ -59,16 +59,14 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                 # do work - don't change this
                 self.forward_prop(x)
                 nabla_b, nabla_w = self.back_prop(y)
-                
-                system(f'echo {len(nabla_w)} > worker')  ##DEBUG
 
                 # send nabla_b, nabla_w to masters 
                 # TODO: add your code
                 for i in range(0, len(nabla_w)):  ##masters- 0 to num_masters - 1
                     dst = i % self.num_masters
                     ind = int(i / self.num_masters)
-                    self.comm.Isend(nabla_w[i], dst)
-                    self.comm.Isend(nabla_b[i], dst)
+                    self.comm.Isend(nabla_w[i], dst, ind)
+                    self.comm.Isend(nabla_b[i], dst, ind)
                
                 # recieve new self.weight and self.biases values from masters
                 # TODO: add your code
@@ -101,20 +99,20 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                 # get the nabla_w, nabla_b for the master's layers
                 # TODO: add your code
                 s = MPI.Status()
-                req = self.comm.Irecv(nabla_w[0], MPI.ANY_SOURCE, MPI.ANY_TAG)
+                req = self.comm.Irecv(nabla_w[0], MPI.ANY_SOURCE, 0)
                 MPI.Request.Wait(req, s)
                 
                
                 
                 src = s.Get_source()       
-                req = self.comm.Irecv(nabla_b[0], src, MPI.ANY_TAG)
+                req = self.comm.Irecv(nabla_b[0], src, 0)
                 MPI.Request.Wait(req)
                 
                 
                 for i in range(1, len(nabla_w)):
-                    req = self.comm.Irecv(nabla_w[i], src)
+                    req = self.comm.Irecv(nabla_w[i], src, i)
                     MPI.Request.Wait(req)
-                    req = self.comm.Irecv(nabla_b[i], src)
+                    req = self.comm.Irecv(nabla_b[i], src, i)
                     MPI.Request.Wait(req)
                 
                 
@@ -125,13 +123,9 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
 
                 # send new values (of layers in charge)
                 # TODO: add your code
-                tempw = []
-                tempb = []
                 for i in range(len(self.weights)):
-                    tempw.append(np.array(self.weights[i]))
-                    tempb.append(np.array(self.biases[i]))
-                    self.comm.Isend(tempw[i], src)
-                    self.comm.Isend(tempb[i], src)
+                    self.comm.Isend(self.weights[i], src)
+                    self.comm.Isend(self.biases[i], src)
                 
                 
             self.print_progress(validation_data, epoch)
