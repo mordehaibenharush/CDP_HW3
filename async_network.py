@@ -1,3 +1,4 @@
+
 from network import *
 import itertools
 import sys
@@ -47,7 +48,6 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
         :param training_data: a tuple of data and labels to train the NN with
         """
         # setting up the number of batches the worker should do every epoch
-        # TODO: add your code
         self.number_of_batches = sum([1 for i in range(self.rank - self.num_masters, self.number_of_batches, self.num_workers)])    ##TODO: check this line
         for epoch in range(self.epochs):
             # creating batches for epoch
@@ -60,29 +60,29 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                 self.forward_prop(x)
                 nabla_b, nabla_w = self.back_prop(y)
 
-                # send nabla_b, nabla_w to masters 
-                # TODO: add your code
-                tempw = []
-                tempb = []
+                # send nabla_b, nabla_w to masters
                 for i in range(0, len(nabla_w)):  ##masters- 0 to num_masters - 1
                     dst = i % self.num_masters
                     ind = int(i / self.num_masters)
-                    tempw.append(np.array(nabla_w[i]))
-                    tempb.append(np.array(nabla_b[i]))
-                    self.comm.Isend(tempw[i], dst, ind)
-                    self.comm.Isend(tempb[i], dst, ind + 1000)
+                    self.comm.Isend(nabla_w[i], dst, ind)
+                    self.comm.Isend(nabla_b[i], dst, ind+1000)
                
                 # recieve new self.weight and self.biases values from masters
-                # TODO: add your code
-                
+                wreqs = []
+				breqs = []
+				
                 for i in range(0, len(self.weights) * self.num_masters):  ##masters- 0 to num_masters - 1 (including)
                     dst = i % self.num_masters
                     ind = int(i / self.num_masters)
-                    s = MPI.Status()
+                    # s = MPI.Status()
                     req = self.comm.Irecv(self.weights[ind], dst, ind)
-                    MPI.Request.Wait(req, s)
-                    req = self.comm.Irecv(self.biases[ind], dst, ind + 1000)
-                    MPI.Request.Wait(req)
+                    wreqs.append(req)
+                    req = self.comm.Irecv(self.biases[ind], dst, ind+1000)
+                    breqs.append(req)
+				
+				for wr, br in zip(wreqs, breqs):
+                    MPI.Request.Wait(wr)
+                    MPI.Request.Wait(br)
                 
 
     def do_master(self, validation_data):
@@ -101,24 +101,22 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
             for batch in range(self.number_of_batches):
                 # wait for any worker to finish batch and
                 # get the nabla_w, nabla_b for the master's layers
-                # TODO: add your code
                 s = MPI.Status()
-                req = self.comm.Irecv(nabla_w[0], MPI.ANY_SOURCE, 0)
-                MPI.Request.Wait(req, s)
-                
-               
-                
+                self.comm.Probe(MPI.ANY_SOURCE, MPI.ANY_TAG, status=s)
                 src = s.Get_source()       
-                req = self.comm.Irecv(nabla_b[0], src, 1000)
-                MPI.Request.Wait(req)
                 
-                
-                for i in range(1, len(nabla_w)):
+				wreqs = []
+				breqs = []
+				
+                for i in range(0, len(nabla_w)):
                     req = self.comm.Irecv(nabla_w[i], src, i)
-                    MPI.Request.Wait(req)
-                    req = self.comm.Irecv(nabla_b[i], src, i + 1000)
-                    MPI.Request.Wait(req)
+                    wreqs.append(req)
+                    req = self.comm.Irecv(nabla_b[i], src, i+1000)
+                    breqs.append(req)
                 
+				for wr, br in zip(wreqs, breqs):
+                    MPI.Request.Wait(wr)
+                    MPI.Request.Wait(br)
                 
                 # calculate new weights and biases (of layers in charge)
                 for i, dw, db in zip(range(self.rank, self.num_layers, self.num_masters), nabla_w, nabla_b):
@@ -126,34 +124,35 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                     self.biases[i] = self.biases[i] - self.eta * db
 
                 # send new values (of layers in charge)
-                # TODO: add your code
-                tempw = []
-                tempb = []
                 for i in range(len(self.weights)):
-                    tempw.append(np.array(self.weights[i]))
-                    tempb.append(np.array(self.biases[i]))
-                    self.comm.Isend(tempw[i], src, i)
-                    self.comm.Isend(tempb[i], src, i + 1000)
+                    self.comm.Isend(self.weights[i], src, i)
+                    self.comm.Isend(self.biases[i], src, i+1000)
                 
                 
             self.print_progress(validation_data, epoch)
 
         # gather relevant weight and biases to process 0
+        #for i in range(len(self.weights)):
+        #    self.comm.Allgather(self.weights[i], self.weights[i])
+        #    self.comm.Allgather(self.biases[i], self.biases[i])
         
         if self.rank != 0:
             for i in range(len(self.weights)):
-                self.comm.Isend(self.weights[i], 0)
-                self.comm.Isend(self.biases[i], 0)
+                self.comm.Isend(self.weights[i], 0, i)
+                self.comm.Isend(self.biases[i], 0, i+1000)
         else:
+		
+			wrs = []
+			brs = []
+			
             for src in range(1, self.num_masters):
                 for i in range(len(self.weights), len(self.weights)*self.num_masters):
                     ind = i % len(self.weights)
-                    #w = np.zeros_like(self.weights[0])
-                    #b = np.zeros_like(self.biases[0])
-                    self.comm.Irecv(self.weights[ind], src)
-                    MPI.Request.Wait(req)
-                    self.comm.Irecv(self.biases[ind], src)
-                    MPI.Request.Wait(req)   
-        
-        
-        # TODO: add your code
+                    self.comm.Irecv(self.weights[ind], src, ind)
+                    wrs.append(req)
+                    self.comm.Irecv(self.biases[ind], src, ind+1000)
+                    brs.append(req)
+			
+			for wr, br in zip(wrs, brs):
+                    MPI.Request.Wait(wr)
+                    MPI.Request.Wait(br)
