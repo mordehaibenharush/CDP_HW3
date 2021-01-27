@@ -70,7 +70,7 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                     tempw.append(np.array(nabla_w[i]))
                     tempb.append(np.array(nabla_b[i]))
                     self.comm.Isend(tempw[i], dst, ind)
-                    self.comm.Isend(tempb[i], dst, ind)
+                    self.comm.Isend(tempb[i], dst, ind + 1000)
                
                 # recieve new self.weight and self.biases values from masters
                 # TODO: add your code
@@ -79,9 +79,9 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                     dst = i % self.num_masters
                     ind = int(i / self.num_masters)
                     s = MPI.Status()
-                    req = self.comm.Irecv(self.weights[ind], dst)
+                    req = self.comm.Irecv(self.weights[ind], dst, ind)
                     MPI.Request.Wait(req, s)
-                    req = self.comm.Irecv(self.biases[ind], dst)
+                    req = self.comm.Irecv(self.biases[ind], dst, ind + 1000)
                     MPI.Request.Wait(req)
                 
 
@@ -109,14 +109,14 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                
                 
                 src = s.Get_source()       
-                req = self.comm.Irecv(nabla_b[0], src, 0)
+                req = self.comm.Irecv(nabla_b[0], src, 1000)
                 MPI.Request.Wait(req)
                 
                 
                 for i in range(1, len(nabla_w)):
                     req = self.comm.Irecv(nabla_w[i], src, i)
                     MPI.Request.Wait(req)
-                    req = self.comm.Irecv(nabla_b[i], src, i)
+                    req = self.comm.Irecv(nabla_b[i], src, i + 1000)
                     MPI.Request.Wait(req)
                 
                 
@@ -132,8 +132,8 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                 for i in range(len(self.weights)):
                     tempw.append(np.array(self.weights[i]))
                     tempb.append(np.array(self.biases[i]))
-                    self.comm.Isend(tempw[i], src)
-                    self.comm.Isend(tempb[i], src)
+                    self.comm.Isend(tempw[i], src, i)
+                    self.comm.Isend(tempb[i], src, i + 1000)
                 
                 
             self.print_progress(validation_data, epoch)
