@@ -62,11 +62,15 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
 
                 # send nabla_b, nabla_w to masters 
                 # TODO: add your code
+                tempw = []
+                tempb = []
                 for i in range(0, len(nabla_w)):  ##masters- 0 to num_masters - 1
                     dst = i % self.num_masters
                     ind = int(i / self.num_masters)
-                    self.comm.Isend(nabla_w[i], dst, ind)
-                    self.comm.Isend(nabla_b[i], dst, ind)
+                    tempw.append(np.array(nabla_w[i]))
+                    tempb.append(np.array(nabla_b[i]))
+                    self.comm.Isend(tempw[i], dst, ind)
+                    self.comm.Isend(tempb[i], dst, ind)
                
                 # recieve new self.weight and self.biases values from masters
                 # TODO: add your code
@@ -123,17 +127,18 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
 
                 # send new values (of layers in charge)
                 # TODO: add your code
+                tempw = []
+                tempb = []
                 for i in range(len(self.weights)):
-                    self.comm.Isend(self.weights[i], src)
-                    self.comm.Isend(self.biases[i], src)
+                    tempw.append(np.array(self.weights[i]))
+                    tempb.append(np.array(self.biases[i]))
+                    self.comm.Isend(tempw[i], src)
+                    self.comm.Isend(tempb[i], src)
                 
                 
             self.print_progress(validation_data, epoch)
 
         # gather relevant weight and biases to process 0
-        #for i in range(len(self.weights)):
-        #    self.comm.Allgather(self.weights[i], self.weights[i])
-        #    self.comm.Allgather(self.biases[i], self.biases[i])
         
         if self.rank != 0:
             for i in range(len(self.weights)):
@@ -148,9 +153,7 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                     self.comm.Irecv(self.weights[ind], src)
                     MPI.Request.Wait(req)
                     self.comm.Irecv(self.biases[ind], src)
-                    MPI.Request.Wait(req)
-                    #
-                    #self.biases.append(b)
+                    MPI.Request.Wait(req)   
         
         
         # TODO: add your code
