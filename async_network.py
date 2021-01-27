@@ -69,7 +69,7 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                
                 # recieve new self.weight and self.biases values from masters
                 wreqs = []
-				breqs = []
+                breqs = []
 				
                 for i in range(0, len(self.weights) * self.num_masters):  ##masters- 0 to num_masters - 1 (including)
                     dst = i % self.num_masters
@@ -80,7 +80,7 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                     req = self.comm.Irecv(self.biases[ind], dst, ind+1000)
                     breqs.append(req)
 				
-				for wr, br in zip(wreqs, breqs):
+                for wr, br in zip(wreqs, breqs):
                     MPI.Request.Wait(wr)
                     MPI.Request.Wait(br)
                 
@@ -105,8 +105,8 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                 self.comm.Probe(MPI.ANY_SOURCE, MPI.ANY_TAG, status=s)
                 src = s.Get_source()       
                 
-				wreqs = []
-				breqs = []
+                wreqs = []
+                breqs = []
 				
                 for i in range(0, len(nabla_w)):
                     req = self.comm.Irecv(nabla_w[i], src, i)
@@ -114,7 +114,7 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                     req = self.comm.Irecv(nabla_b[i], src, i+1000)
                     breqs.append(req)
                 
-				for wr, br in zip(wreqs, breqs):
+                for wr, br in zip(wreqs, breqs):
                     MPI.Request.Wait(wr)
                     MPI.Request.Wait(br)
                 
@@ -142,8 +142,8 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                 self.comm.Isend(self.biases[i], 0, i+1000)
         else:
 		
-			wrs = []
-			brs = []
+            wrs = []
+            brs = []
 			
             for src in range(1, self.num_masters):
                 for i in range(len(self.weights), len(self.weights)*self.num_masters):
@@ -153,6 +153,6 @@ class AsynchronicNeuralNetwork(NeuralNetwork):
                     self.comm.Irecv(self.biases[ind], src, ind+1000)
                     brs.append(req)
 			
-			for wr, br in zip(wrs, brs):
-                    MPI.Request.Wait(wr)
-                    MPI.Request.Wait(br)
+            for wr, br in zip(wrs, brs):
+                MPI.Request.Wait(wr)
+                MPI.Request.Wait(br)
